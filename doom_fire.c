@@ -8,7 +8,7 @@
 #define FIRE_HEIGHT 128
 
 typedef struct STRUCT_COLOR {
-  int aiData[32];
+  int aiData[FIRE_WIDTH * FIRE_HEIGHT * 4]; //chatgpt suggested to dynamically allocated a larger buffer. Before was 32
 } STRUCT_COLOR;
 
 typedef STRUCT_COLOR STRUCT_COLOUR;
@@ -21,15 +21,15 @@ typedef struct STRUCT_PIXEL {
 
 
 //var stage;
-STRUCT_PIXEL* gastFirePal[];
-int gaiFirePixels[];
-int gaiFireBuffer[];
+STRUCT_PIXEL gastFirePal[37];
+int gaiFirePixels[FIRE_WIDTH * FIRE_HEIGHT];
+int gaiFireBuffer[FIRE_WIDTH * FIRE_HEIGHT];
 // var container = null;
 STRUCT_COLOR gstColor;
 //var canvas;
 // var bmp;
 
-int aiFireRGB[] = {
+int gaiFireRGB[] = {
   0x07,0x07,0x07,0x1F,0x07,0x07,0x2F,0x0F,0x07,0x47,0x0F,0x07,0x57,0x17,0x07,0x67,
   0x1F,0x07,0x77,0x1F,0x07,0x8F,0x27,0x07,0x9F,0x2F,0x07,0xAF,0x3F,0x07,0xBF,0x47,
   0x07,0xC7,0x47,0x07,0xDF,0x4F,0x07,0xDF,0x57,0x07,0xDF,0x57,0x07,0xD7,0x5F,0x07,
@@ -39,7 +39,7 @@ int aiFireRGB[] = {
   0xB7,0xB7,0x37,0xCF,0xCF,0x6F,0xDF,0xDF,0x9F,0xEF,0xEF,0xC7,0xFF,0xFF,0xFF
 };
 
-void vDrawPixel(int iX,int iY,struct stPixel) {
+void vDrawPixel(int iX,int iY,STRUCT_PIXEL stPixel) {
     gstColor.aiData[((FIRE_WIDTH * iY) + iX) * 4 + 0] = stPixel.iR;
     gstColor.aiData[((FIRE_WIDTH * iY) + iX) * 4 + 1] = stPixel.iG;
     gstColor.aiData[((FIRE_WIDTH * iY) + iX) * 4 + 2] = stPixel.iB;
@@ -55,24 +55,21 @@ void  vStart() {
 
 //  container = new createjs.Container();
 
-    for (int ii = 0; ii < 37; ii++) {
-        
-        gastFirePal[ii].iR = gaiFireRGB[ii * 3 + 0], //16 * i,
-        gastFirePal[ii].iG = gaiFireRGB[ii * 3 + 1], //16 * i,
-        gastFirePal[ii].iB = gaiFireRGB[ii * 3 + 2]  //16 * i
-        
-        }
-    }
+  for (int ii = 0; ii < 37; ii++) {
+    gastFirePal[ii].iR = gaiFireRGB[ii * 3 + 0]; //16 * i,
+    gastFirePal[ii].iG = gaiFireRGB[ii * 3 + 1]; //16 * i,
+    gastFirePal[ii].iB = gaiFireRGB[ii * 3 + 2];  //16 * i
+  }
 
 //  stage.addChild(container);
 
-    for (int ii = 0; ii < FIRE_WIDTH*FIRE_HEIGHT; ii++) {
-        gaiFirePixels[i] = 0;
-    }
+  for (int ii = 0; ii < FIRE_WIDTH*FIRE_HEIGHT; ii++) {
+    gaiFirePixels[ii] = 0;
+  }
 
-    for(int ii = 0; ii < FIRE_WIDTH; ii++) {
-        aiFirePixels[(FIRE_HEIGHT-1)*FIRE_WIDTH + ii] = 36;
-    }
+  for(int ii = 0; ii < FIRE_WIDTH; ii++) {
+    gaiFirePixels[(FIRE_HEIGHT-1)*FIRE_WIDTH + ii] = 36;
+  }
 
 //  container.scaleX = 2;
 //  container.scaleY = 2;
@@ -85,64 +82,65 @@ void  vStart() {
 }
 
 int iSpreadFire(int iPixel,int iCurSrc,int iCount,int iSrcOffset,int iRand,int iWidth) {
-    if(iPixel != 0) {
-        int iRandIdx = round(srandom(time(NULL)) % 255) & 255;
-        int iTempSrc;
+  srand(time(NULL));
+  if(iPixel != 0) {
+    int iRandIdx = (rand() % 255) & 255;
+    int iTempSrc;
 
-        iRand = ((iRand+2) & 255);
-        iTempSrc = (iCurSrc + (((iCounter - (iRandIdx & 3)) + 1) & (FIRE_WIDTH - 1)));
-        aiFirePixels[iTempSrc - FIRE_WIDTH] = iPixel - ((iRandIdx & 1));
-    }
-    else {
-        aiFirePixels[iSrcOffset - FIRE_WIDTH] = 0;
-    }
+    iRand = ((iRand+2) & 255);
+    iTempSrc = (iCurSrc + (((iCount - (iRandIdx & 3)) + 1) & (FIRE_WIDTH - 1)));
+    gaiFirePixels[iTempSrc - FIRE_WIDTH] = iPixel - ((iRandIdx & 1));
+  }
+  else {
+    gaiFirePixels[iSrcOffset - FIRE_WIDTH] = 0;
+  }
 
-    return iRand;
+  return iRand;
 }
 
 void vDoFire() {
-    int  iCounter = 0;
-    int  iCurSrc = 0;
-    int  iSrcOffset = 0;
-    int  iRand = 0;
-    int  iStep = 0;
-    int  iPixel = 0;
-    int  ii = 0;
+  int  iCounter = 0;
+  int  iCurSrc = 0;
+  int  iSrcOffset = 0;
+  int  iRand = 0;
+  int  iStep = 0;
+  int  iPixel = 0;
+  int  ii = 0;
 
-    iRand = round(srandom(time(NULL)) * 255) & 255;
-    iCurSrc = FIRE_WIDTH;
+  iRand = (rand() * 255) & 255;
+  iCurSrc = FIRE_WIDTH;
+
+  do {
+    iSrcOffset = (iCurSrc + iCounter);
+    iPixel = gaiFirePixels[iSrcOffset];
+    iStep = 2;
+
+    iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
+
+    iCurSrc += FIRE_WIDTH;
+    iSrcOffset += FIRE_WIDTH;
 
     do {
-        iSrcOffset = (iCurSrc + iCounter);
-        iPixel = aiFirePixels[iSrcOffset];
-        iStep = 2;
+      iPixel = gaiFirePixels[iSrcOffset];
+      iStep += 2;
 
-        iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
+      iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
 
-        iCurSrc += FIRE_WIDTH;
-        iSrcOffset += FIRE_WIDTH;
+      iPixel = gaiFirePixels[iSrcOffset + FIRE_WIDTH];
+      iCurSrc += FIRE_WIDTH;
+      iSrcOffset += FIRE_WIDTH;
 
-        do {
-            iPixel = aiFirePixels[iSrcOffset];
-            iStep += 2;
+      iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
 
-            iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
+      iCurSrc += FIRE_WIDTH;
+      iSrcOffset += FIRE_WIDTH;
 
-            iPixel = aiFirePixels[iSrcOffset + FIRE_WIDTH];
-            iCurSrc += FIRE_WIDTH;
-            iSrcOffset += FIRE_WIDTH;
+    } while(iStep < FIRE_HEIGHT);
 
-            iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, FIRE_WIDTH);
+    iCounter++;
+    iCurSrc -= ((FIRE_WIDTH*FIRE_HEIGHT)-FIRE_WIDTH);
 
-            iCurSrc += FIRE_WIDTH;
-            iSrcOffset += FIRE_WIDTH;
-
-        } while(iStep < FIRE_HEIGHT);
-
-        iCounter++;
-        iCurSrc -= ((FIRE_WIDTH*FIRE_HEIGHT)-FIRE_WIDTH);
-
-    } while(iCounter < FIRE_WIDTH);
+  } while(iCounter < FIRE_WIDTH);
 }
 //TODO rever assim que possível
 

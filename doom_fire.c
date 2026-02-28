@@ -137,6 +137,8 @@ void vDoFire(void);
 void vTick(void);
 
 void vDrawPixel(int iX, int iY, STRUCT_PIXEL stPixel) {
+  if (iX < 0 || iX >= giFireWidth || iY < 0 || iY >= giFireHeight) return;
+
   gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 0] = stPixel.iR;
   gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 1] = stPixel.iG;
   gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 2] = stPixel.iB;
@@ -149,8 +151,8 @@ void vStart(void) {
 
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
 
-  giFireWidth = w.ws_row;
-  giFireHeight = w.ws_col;
+  giFireWidth = w.ws_col;
+  giFireHeight = w.ws_row;
 
   gstColor.aiData = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight * 4);
   gaiFirePixels = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);

@@ -16,9 +16,14 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <sys/ioctl.h>
+#ifdef _WIN32
+  #include <windows.h>
+  #include <conio.h>
+#else
+  #include <unistd.h>
+  #include <sys/ioctl.h>
+#endif
 
 /**
  * @var giFireWidth
@@ -147,12 +152,18 @@ void vDrawPixel(int iX, int iY, STRUCT_PIXEL stPixel) {
 
 void vStart(void) {
   int ii = 0;
-  struct winsize w;
 
-  ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-  giFireWidth = w.ws_col;
-  giFireHeight = w.ws_row;
+  #ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    giFireWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    giFireHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+  #else
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    giFireWidth = w.ws_col;
+    giFireHeight = w.ws_row;
+  #endif
 
   gstColor.aiData = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight * 4);
   gaiFirePixels = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);
@@ -270,13 +281,28 @@ void vTick(void) {
 int main(void) {
   memset(gastFirePal  , 0x00, sizeof(gastFirePal  ));
   memset(&gstColor    , 0x00, sizeof(gstColor     ));
+
+#ifdef _WIN32
+  {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+  }
+#endif
+
   srand(time(NULL));
   printf("\033[2J");  /* limpa tela */
   printf("\033[?25l"); /* esconde cursor */
   vStart();
   while ( 1 ) {
     vTick();
+#ifdef _WIN32
+    Sleep(30000/1000);
+#else
     usleep(30000);
+#endif
   }
   vEnd();
   return 0;

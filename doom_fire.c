@@ -351,7 +351,7 @@ void vStart(void) {
     gaiFirePixels[ii] = 0;
   }
   for ( ii = 0; ii < giFireWidth; ii++ ) {
-    gaiFirePixels[(giFireHeight-1)*giFireWidth + ii] = 36;
+    gaiFirePixels[(giFireHeight-1)*giFireWidth + ii] = 26;
   }
 }
 
@@ -380,7 +380,7 @@ int iSpreadFire(int iPixel, int iCurSrc, int iCount, int iSrcOffset, int iRand, 
     }
     iRand = ((iRand+2) & 255);
     iTempSrc = iCurSrc + (iShift % iWidth);
-    gaiFirePixels[iTempSrc - iWidth] = iPixel - ((iRandIdx & 1));
+    gaiFirePixels[iTempSrc - iWidth] = iPixel - ((iRandIdx & 2));
   }
   else {
     gaiFirePixels[iSrcOffset - iWidth] = 0;

@@ -17,6 +17,8 @@
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
+#include <libgen.h>
 #ifdef _WIN32
   #include <windows.h>
   #include <conio.h>
@@ -24,6 +26,169 @@
   #include <unistd.h>
   #include <sys/ioctl.h>
 #endif
+
+typedef enum boolean { FALSE, TRUE } boolean;
+
+/* Command Line */
+#define NO_ARGUMENT no_argument
+#define REQUIRED_ARGUMENT required_argument
+#define OPTIONAL_ARGUMENT optional_argument
+
+typedef enum ENUM_CMDDATATYPES {
+  CMDTYPE_BOOL,
+  CMDTYPE_CHAR,
+  CMDTYPE_INT,
+  CMDTYPE_DOUBLE,
+  CMDTYPE_STRING,
+  CMDTYPE_NULL
+} ENUM_CMDDATATYPES, *PENUM_CMDDATATYPES;
+
+typedef struct STRUCT_COMLINE_OPTIONS {
+  const char* kpszLong;
+  const char kchShort;
+  int has_arg;
+  int iDataType;
+  const char* kpszArgExemple;
+  boolean bSet;
+  const char* kpszDefaultData;
+  void* pData;
+  int iDataSize;
+  const char* kpszHelp;
+} STRUCT_COMLINE_OPTIONS, *PSTRUCT_COMLINE_OPTIONS;
+
+const char* gkpszShortOpts = "hv";
+
+STRUCT_COMLINE_OPTIONS astCmdOpt[] = {
+  { "help", 'h', NO_ARGUMENT, CMDTYPE_NULL, "",
+    FALSE, "", NULL, 0,
+    "Show this message and exit."
+  },
+  { "version", 'v', NO_ARGUMENT, CMDTYPE_NULL, "",
+    FALSE, "", NULL, 0,
+    "Show the version and exit."
+  },
+  { NULL, 0, NO_ARGUMENT, CMDTYPE_NULL, NULL,
+    FALSE, NULL, NULL, 0,
+    NULL
+  }
+};
+
+/**
+ * @brief Parse command line
+ *
+ * @param argc Command line argument counter
+ * @param argv Command line argument vector
+ * @param astCmdOpt Command line options
+ *
+ * @return TRUE if OK
+ * @return FALSE if have an error
+ */
+boolean bParseCommandLine(int argc, char* argv[], STRUCT_COMLINE_OPTIONS astCmdOpt[]);
+boolean bParseCommandLine(int argc, char* argv[], STRUCT_COMLINE_OPTIONS astCmdOpt[]) {
+  int ii = 0;
+  int iArraySize = 0;
+  struct option* astGnuCmdOpt = NULL;
+  int iGnuIdx = 0;
+  boolean bRsl = TRUE;
+  int opt = 0;
+
+  opterr = FALSE;
+
+  for ( ii = 0; astCmdOpt[ii].kpszLong; ii++ ) iArraySize++;
+
+  astGnuCmdOpt = (struct option*) malloc(iArraySize * sizeof(struct option));
+  if ( !astGnuCmdOpt ) return FALSE;
+
+  for ( ii = 0; astCmdOpt[ii].kpszLong; ii++ ) {
+    astGnuCmdOpt[ii].name = astCmdOpt[ii].kpszLong;
+    astGnuCmdOpt[ii].val = astCmdOpt[ii].kchShort;
+    astGnuCmdOpt[ii].has_arg = astCmdOpt[ii].has_arg;
+    astGnuCmdOpt[ii].flag = NULL;
+    /* Set default values */
+    switch ( astCmdOpt[ii].iDataType ) {
+      case CMDTYPE_BOOL:
+      case CMDTYPE_INT: {
+        *(int*)astCmdOpt[ii].pData = atoi(astCmdOpt[ii].kpszDefaultData);
+        break;
+      }
+      case CMDTYPE_CHAR: {
+        *(char*)astCmdOpt[ii].pData = astCmdOpt[ii].kpszDefaultData[0];
+        break;
+      }
+      case CMDTYPE_DOUBLE: {
+        *(double*)astCmdOpt[ii].pData = atof(astCmdOpt[ii].kpszDefaultData);
+        break;
+      }
+      case CMDTYPE_STRING: {
+        snprintf((char*)astCmdOpt[ii].pData, astCmdOpt[ii].iDataSize, "%s", astCmdOpt[ii].kpszDefaultData);
+        break;
+      }
+      default: break;
+    }
+  }
+
+  while ( (opt = getopt_long(argc, argv, gkpszShortOpts, astGnuCmdOpt, &iGnuIdx)) != -1 ) {
+    if ( opt == '?' || opt == ':' ) {
+      bRsl = FALSE;
+      break;
+    }
+    for ( ii = 0; astCmdOpt[ii].kpszLong; ii++ ) {
+      if ( !(
+        ( opt && opt == astCmdOpt[ii].kchShort) ||
+        ( opt == 0 && !strcmp(astGnuCmdOpt[iGnuIdx].name, astCmdOpt[ii].kpszLong))
+      ) ) {
+        continue;
+      }
+      astCmdOpt[ii].bSet = TRUE;
+      if ( astCmdOpt[ii].has_arg == REQUIRED_ARGUMENT ) {
+        if ( !optarg ) {
+          bRsl = FALSE;
+          break;
+        }
+        switch ( astCmdOpt[ii].iDataType ) {
+          case CMDTYPE_BOOL:
+          case CMDTYPE_INT: {
+            *(int*)astCmdOpt[ii].pData = atoi(optarg);
+            break;
+          }
+          case CMDTYPE_CHAR: {
+            *(char*)astCmdOpt[ii].pData = optarg[0];
+            break;
+          }
+          case CMDTYPE_DOUBLE: {
+            *(double*)astCmdOpt[ii].pData = atof(optarg);
+            break;
+          }
+          case CMDTYPE_STRING: {
+            snprintf((char*)astCmdOpt[ii].pData, astCmdOpt[ii].iDataSize, "%s", optarg);
+            break;
+          }
+          default: {
+            break;
+          }
+        }
+      }
+    }
+    if ( !bRsl ) break;
+  }
+
+  free(astGnuCmdOpt);
+  astGnuCmdOpt = NULL;
+
+  return bRsl;
+}
+
+/**
+ * @var gkpszArgv0
+ * @brief Receive the content of argv[0]
+ */
+const char* gkpszArgv0 = NULL;
+
+/**
+ * @var gkpszProgramName
+ * @brief Receive the name of binary
+ */
+const char* gkpszProgramName = NULL;
 
 /**
  * @var giFireWidth
@@ -48,42 +213,42 @@ typedef struct STRUCT_COLOR {
 typedef STRUCT_COLOR STRUCT_COLOUR;
 
 /**
- *
+ * @struct STRUCT_PIXEL
  * @brief ...
  */
 typedef struct STRUCT_PIXEL {
-  int iR; /*< RED   */
-  int iG; /*< GREEN */
-  int iB; /*< BLUE  */
+  unsigned char uchR; /*< RED   */
+  unsigned char uchG; /*< GREEN */
+  unsigned char uchB; /*< BLUE  */
 } STRUCT_PIXEL;
 
 /**
+ * @var gastFirePal
  * @brief ...
- *
  */
 STRUCT_PIXEL gastFirePal[37];
 
 /**
+ * @var gaiFirePixels
  * @brief ...
- *
  */
 int* gaiFirePixels;
 
 /**
+ * @var gaiFireBuffer
  * @brief ...
- *
  */
 int* gaiFireBuffer;
 
 /**
+ * @var gstColor
  * @brief ...
- *
  */
 STRUCT_COLOR gstColor;
 
 /**
+ * @var gkaiFireRGB
  * @brief ...
- *
  */
 static const int gkaiFireRGB[] = {
   0x07,0x07,0x07,0x1F,0x07,0x07,0x2F,0x0F,0x07,0x47,0x0F,0x07,0x57,0x17,0x07,0x67,
@@ -143,16 +308,14 @@ void vTick(void);
 
 void vDrawPixel(int iX, int iY, STRUCT_PIXEL stPixel) {
   if (iX < 0 || iX >= giFireWidth || iY < 0 || iY >= giFireHeight) return;
-
-  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 0] = stPixel.iR;
-  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 1] = stPixel.iG;
-  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 2] = stPixel.iB;
+  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 0] = stPixel.uchR;
+  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 1] = stPixel.uchG;
+  gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 2] = stPixel.uchB;
   gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 3] = 255;
 }
 
 void vStart(void) {
   int ii = 0;
-
   #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
@@ -164,30 +327,47 @@ void vStart(void) {
     giFireWidth = w.ws_col;
     giFireHeight = w.ws_row;
   #endif
-
   gstColor.aiData = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight * 4);
-  gaiFirePixels = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);
-  gaiFireBuffer = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);
-
-  for ( ii = 0; ii < 37; ii++ ) {
-    gastFirePal[ii].iR = gkaiFireRGB[ii * 3 + 0]; /* 16 * i, */
-    gastFirePal[ii].iG = gkaiFireRGB[ii * 3 + 1]; /* 16 * i, */
-    gastFirePal[ii].iB = gkaiFireRGB[ii * 3 + 2]; /* 16 * i  */
+  if ( !gstColor.aiData ) {
+    fprintf(stderr, "Erro ao alocar gstColor.aiData!");
+    exit(EXIT_FAILURE);
   }
-
+  gaiFirePixels = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);
+  if ( !gaiFirePixels ) {
+    fprintf(stderr, "Erro ao alocar gaiFirePixels!");
+    exit(EXIT_FAILURE);
+  }
+  gaiFireBuffer = (int*)malloc(sizeof(int) * giFireWidth * giFireHeight);
+  if ( !gaiFireBuffer ) {
+    fprintf(stderr, "Erro ao alocar gaiFireBuffer!");
+    exit(EXIT_FAILURE);
+  }
+  for ( ii = 0; ii < 37; ii++ ) {
+    gastFirePal[ii].uchR = gkaiFireRGB[ii * 3 + 0]; /* 16 * i, */
+    gastFirePal[ii].uchG = gkaiFireRGB[ii * 3 + 1]; /* 16 * i, */
+    gastFirePal[ii].uchB = gkaiFireRGB[ii * 3 + 2]; /* 16 * i  */
+  }
   for ( ii = 0; ii < giFireWidth*giFireHeight; ii++ ) {
     gaiFirePixels[ii] = 0;
   }
-
   for ( ii = 0; ii < giFireWidth; ii++ ) {
     gaiFirePixels[(giFireHeight-1)*giFireWidth + ii] = 36;
   }
 }
 
 void vEnd(void) {
-  free(gstColor.aiData);
-  free(gaiFirePixels);
-  free(gaiFireBuffer);
+  if ( gstColor.aiData ) {
+    free(gstColor.aiData);
+    gstColor.aiData = NULL;
+  }
+  if ( gaiFirePixels ) {
+    free(gaiFirePixels);
+    gaiFirePixels = NULL;
+  }
+  if ( gaiFireBuffer ) {
+    free(gaiFireBuffer);
+    gaiFireBuffer = NULL;
+  }
 }
 
 int iSpreadFire(int iPixel, int iCurSrc, int iCount, int iSrcOffset, int iRand, int iWidth) {
@@ -235,6 +415,8 @@ void vDoFire(void) {
 
       iRand = iSpreadFire(iPixel, iCurSrc, iCounter, iSrcOffset, iRand, giFireWidth);
 
+      if ((iSrcOffset + giFireWidth) >= (giFireWidth * giFireHeight)) break;
+
       iPixel = gaiFirePixels[iSrcOffset + giFireWidth];
       iCurSrc += giFireWidth;
       iSrcOffset += giFireWidth;
@@ -278,9 +460,64 @@ void vTick(void) {
   printf("\033[0m");
 }
 
-int main(void) {
+static void vShowUsage();
+static void vShowUsage() {
+  int ii = 0;
+  printf("Usage: %s [options]\n", gkpszProgramName ? gkpszProgramName : "doom_fire");
+  printf("\nOptions:\n");
+  for ( ii = 0; astCmdOpt[ii].kpszLong; ii++ ) {
+    const char* pszArgExample = NULL;
+    int iHasExample = 0;
+    if (!astCmdOpt[ii].kpszLong) break;
+    pszArgExample = astCmdOpt[ii].kpszArgExemple;
+    iHasExample = (pszArgExample && pszArgExample[0] != '\0');
+    if ( iHasExample ) {
+      printf("  --%s=%s", astCmdOpt[ii].kpszLong, pszArgExample);
+    }
+    else {
+      printf("  --%s", astCmdOpt[ii].kpszLong);
+    }
+    if ( astCmdOpt[ii].kchShort != 0 ) {
+      if ( iHasExample ) {
+        printf(", -%c%s", astCmdOpt[ii].kchShort, pszArgExample);
+      }
+      else {
+        printf(", -%c", astCmdOpt[ii].kchShort);
+      }
+    }
+    printf("\n    %s\n", astCmdOpt[ii].kpszHelp);
+    if ( astCmdOpt[ii+1].kpszLong ) {
+      printf("\n");
+    }
+  }
+}
+
+static void vShowVersion();
+static void vShowVersion() {
+  printf("%s\n", gkpszProgramName);
+  printf("Jose Eduardo & Gustavo Bacagine (C) 2026 [%s %s]\n", __DATE__, __TIME__);
+}
+
+int main(int argc, char* argv[]) {
   memset(gastFirePal  , 0x00, sizeof(gastFirePal  ));
   memset(&gstColor    , 0x00, sizeof(gstColor     ));
+
+  gkpszArgv0 = argv[0];
+  gkpszProgramName = basename(argv[0]);
+
+  if ( !bParseCommandLine(argc, argv, astCmdOpt) ) {
+    return -1;
+  }
+
+  if ( astCmdOpt[0].bSet ) {
+    vShowUsage();
+    return 0;
+  }
+
+  if ( astCmdOpt[1].bSet ) {
+    vShowVersion();
+    return 0;
+  }
 
 #ifdef _WIN32
   {
@@ -305,6 +542,7 @@ int main(void) {
 #endif
   }
   vEnd();
+
   return 0;
 }
 

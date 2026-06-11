@@ -460,8 +460,8 @@ void vTick(void) {
   printf("\033[0m");
 }
 
-static void vShowUsage();
-static void vShowUsage() {
+static void vShowUsage(void);
+static void vShowUsage(void) {
   int ii = 0;
   printf("Usage: %s [options]\n", gkpszProgramName ? gkpszProgramName : "doom_fire");
   printf("\nOptions:\n");
@@ -492,8 +492,8 @@ static void vShowUsage() {
   }
 }
 
-static void vShowVersion();
-static void vShowVersion() {
+static void vShowVersion(void);
+static void vShowVersion(void) {
   printf("%s\n", gkpszProgramName);
   printf("Jose Eduardo & Gustavo Bacagine (C) 2026 [%s %s]\n", __DATE__, __TIME__);
 }

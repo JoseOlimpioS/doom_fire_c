@@ -16,6 +16,14 @@ TARGET  = doom_fire
 CFLAGS  =  -Wall -Wextra -ansi -pedantic -D_XOPEN_SOURCE=501
 CC      = gcc
 
+ifdef APPLE
+  #SDKROOT := $(shell xcrun --sdk macosx --show-sdk-path)
+  SDKROOT = /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk
+  CFLAGS += -DAPPLE -isysroot $(SDKROOT) -I/opt/homebrew/include -I/opt/homebrew/opt/zlib/include
+  LDFLAGS += -isysroot $(SDKROOT) -L/opt/homebrew/lib -L/opt/homebrew/opt/zlib/lib -framework Cocoa -framework OpenGL -framework CoreVideo
+  CC = /opt/homebrew/bin/gcc-14
+endif
+
 ifdef LINUX
   CFLAGS  += -DLINUX
 endif

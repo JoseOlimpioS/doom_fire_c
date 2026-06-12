@@ -22,12 +22,18 @@
 #ifdef _WIN32
   #include <windows.h>
   #include <conio.h>
+
+  HANDLE gpConsole;
+  CONSOLE_SCREEN_BUFFER_INFO gstCSBI;
+
 #else
   #include <unistd.h>
   #include <sys/ioctl.h>
 #endif
 
+#ifndef _WIN32
 typedef enum boolean { FALSE, TRUE } boolean;
+#endif
 
 /* Command Line */
 #define NO_ARGUMENT no_argument
@@ -306,6 +312,46 @@ void vDoFire(void);
  */
 void vTick(void);
 
+/* ============================================= */
+/* WINDOWS-SPECIFIC FUNCTIONS (INSERTED HERE)    */
+/* ============================================= */
+#ifdef _WIN32
+void vClearScreen(void) {
+    COORD stCoord = {0, 0};
+    DWORD uiWritten;
+    FillConsoleOutputCharacter(gpConsole, ' ', 
+        gstCSBI.dwSize.X * gstCSBI.dwSize.Y, stCoord, &uiWritten);
+    FillConsoleOutputAttribute(gpConsole, gstCSBI.wAttributes,
+        gstCSBI.dwSize.X * gstCSBI.dwSize.Y, stCoord, &uiWritten);
+    SetConsoleCursorPosition(gpConsole, stCoord);
+}
+
+void vHideCursor(void) {
+    CONSOLE_CURSOR_INFO stCursorInfo;
+    GetConsoleCursorInfo(gpConsole, &stCursorInfo);
+    stCursorInfo.bVisible = FALSE;
+    SetConsoleCursorInfo(gpConsole, &stCursorInfo);
+}
+
+void vSetColor(int iR, int iG, int iB) {
+    // Windows Console has limited colors, map RGB to nearest console color
+    int iColor = 0;
+    if (iR > 128) iColor |= FOREGROUND_RED;
+    if (iG > 128) iColor |= FOREGROUND_GREEN;
+    if (iB > 128) iColor |= FOREGROUND_BLUE;
+    if (iR > 128 && iG > 128 && iB > 128) iColor = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+    SetConsoleTextAttribute(gpConsole, iColor);
+}
+
+void vDrawPixelWin(int iX, int iY, STRUCT_PIXEL stPixel) {
+    COORD stCoord = {iX, iY};
+    SetConsoleCursorPosition(gpConsole, stCoord);
+    vSetColor(stPixel.uchR, stPixel.uchG, stPixel.uchB);
+    printf("█");
+}
+#endif
+/* ============================================= */
+
 void vDrawPixel(int iX, int iY, STRUCT_PIXEL stPixel) {
   if (iX < 0 || iX >= giFireWidth || iY < 0 || iY >= giFireHeight) return;
   gstColor.aiData[((giFireWidth * iY) + iX) * 4 + 0] = stPixel.uchR;
@@ -317,10 +363,11 @@ void vDrawPixel(int iX, int iY, STRUCT_PIXEL stPixel) {
 void vStart(void) {
   int ii = 0;
   #ifdef _WIN32
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-    giFireWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-    giFireHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    /* Initialize Windows console handle */
+    gpConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    GetConsoleScreenBufferInfo(gpConsole, &gstCSBI);
+    giFireWidth = gstCSBI.srWindow.Right - gstCSBI.srWindow.Left + 1;
+    giFireHeight = gstCSBI.srWindow.Bottom - gstCSBI.srWindow.Top + 1;
   #else
     struct winsize w;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
@@ -435,8 +482,15 @@ void vDoFire(void) {
 void vTick(void) {
   int h = 0;
   int w = 0;
-  printf("\033[H"); /* Move cursor para topo */
-  printf("\033[J");   /* limpa da posição atual até o final */
+
+  #ifdef _WIN32
+    /* Clear screen and move cursor to top using Windows API */
+    vClearScreen();
+  #else
+    printf("\033[H"); /* Move cursor para topo */
+    printf("\033[J");   /* limpa da posição atual até o final */
+  #endif
+  
   vDoFire();
   for ( h = 0; h < giFireHeight; h++ ) {
     for ( w = 0; w < giFireWidth; w++ ) {
@@ -444,20 +498,36 @@ void vTick(void) {
       int iGIdx = 0;
       int iBIdx = 0;
       int p = gaiFirePixels[h * giFireWidth + w];
-      vDrawPixel(w, h, gastFirePal[p]);
+
+    #ifdef _WIN32
+      /* Use Windows-specific drawing function */
+      vDrawPixelWin(w, h, gastFirePal[p]);
+    #else
       iRIdx = ((giFireWidth * h) + w) * 4 + 0;
       iGIdx = ((giFireWidth * h) + w) * 4 + 1;
       iBIdx = ((giFireWidth * h) + w) * 4 + 2;
+      vDrawPixel(w, h, gastFirePal[p]);
       printf(
         "\033[38;2;%d;%d;%dm█",
         gstColor.aiData[iRIdx],
         gstColor.aiData[iGIdx],
         gstColor.aiData[iBIdx]
       );
+    #endif
     }
-    printf("\033[0m\n");
+
+    #ifdef _WIN32
+      printf("\n");
+    #else
+     printf("\033[0m\n");
+    #endif
   }
-  printf("\033[0m");
+
+  #ifndef _WIN32
+    printf("\033[0m");
+  #endif
+
+  fflush(stdout);
 }
 
 static void vShowUsage(void);
@@ -518,20 +588,17 @@ int main(int argc, char* argv[]) {
     vShowVersion();
     return 0;
   }
-
-#ifdef _WIN32
-  {
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD dwMode = 0;
-    GetConsoleMode(hOut, &dwMode);
-    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    SetConsoleMode(hOut, dwMode);
-  }
-#endif
-
+  
   srand(time(NULL));
+#ifdef _WIN32
+  /* Initialize Windows console and hide cursor */
+    gpConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    vHideCursor();
+    vClearScreen();
+#else
   printf("\033[2J");  /* limpa tela */
   printf("\033[?25l"); /* esconde cursor */
+#endif
   vStart();
   while ( 1 ) {
     vTick();
